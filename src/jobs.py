@@ -39,6 +39,7 @@ JOB_INTERVALS_SECONDS = {
     "job7_macro": 86_400,
     "job10_events": 86_400,
     "job11_account": 60,
+    "job12_signal_outcomes": 3_600,
 }
 
 
@@ -339,6 +340,35 @@ def _job11_account_snapshot(cfg: Config, client) -> dict[str, Any]:
     return snapshot
 
 
+# --- Job 12: rapor sinyal (+1h/+4h/+24h price tracking) ------------------------------
+
+
+def _fetch_last_price(exchange, symbol: str) -> float:
+    return exchange.fetch_ticker(symbol)["last"]
+
+
+def job12_track_signal_outcomes(cfg: Config, client) -> None:
+    _run(client, "job12_signal_outcomes", _job12_track_signal_outcomes, cfg, client)
+
+
+def _job12_track_signal_outcomes(cfg: Config, client) -> None:
+    exchange = bx.get_exchange(cfg)
+    now = dt.datetime.now(dt.timezone.utc)
+    res = client.table("signals").select("*").is_("price_24h", "null").order("created_at").limit(200).execute()
+    for sig in res.data:
+        created_at = dt.datetime.fromisoformat(sig["created_at"])
+        age = now - created_at
+        updates: dict[str, Any] = {}
+        if sig["price_1h"] is None and age >= dt.timedelta(hours=1):
+            updates["price_1h"] = _fetch_last_price(exchange, sig["symbol"])
+        if sig["price_4h"] is None and age >= dt.timedelta(hours=4):
+            updates["price_4h"] = _fetch_last_price(exchange, sig["symbol"])
+        if sig["price_24h"] is None and age >= dt.timedelta(hours=24):
+            updates["price_24h"] = _fetch_last_price(exchange, sig["symbol"])
+        if updates:
+            client.table("signals").update(updates).eq("id", sig["id"]).execute()
+
+
 # --- Health check --------------------------------------------------------------------
 
 
@@ -422,8 +452,16 @@ def compose_daily_brief(cfg: Config, client) -> str:
     else:
         lines.append("Tidak ada event makro dalam 24 jam ke depan.")
 
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)).isoformat()
+    signals_res = client.table("signals").select("*").gte("created_at", since).order("created_at", desc=True).execute()
     lines.append("")
-    lines.append("Sinyal mesin saran belum aktif (Fase 2).")
+    if signals_res.data:
+        lines.append("Sinyal 24 jam terakhir:")
+        for sig in signals_res.data:
+            hasil = f", harga 24j: {sig['price_24h']:.6g}" if sig.get("price_24h") else ""
+            lines.append(f"  {sig['symbol']} {sig['direction']} skor {sig['score']}/3{hasil}")
+    else:
+        lines.append("Tidak ada sinyal dalam 24 jam terakhir.")
 
     content = "\n".join(lines)
     client.table("daily_briefs").upsert(
