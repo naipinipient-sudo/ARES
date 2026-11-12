@@ -33,7 +33,7 @@ def _int(name: str, default: str) -> int:
     return int(os.environ.get(name, default))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     binance_api_key: str = field(default_factory=lambda: os.environ.get("BINANCE_API_KEY", ""))
     binance_api_secret: str = field(default_factory=lambda: os.environ.get("BINANCE_API_SECRET", ""))
