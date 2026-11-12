@@ -22,7 +22,7 @@ environments (Production/Preview/Development):
 
 | Variable | Value | Notes |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://dahftrzpcbtowdoaoygm.supabase.co` | Same project as the bot |
+| `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL | Same project as the bot. Supabase dashboard -> Project Settings -> API -> Project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the **anon/publishable** key | Supabase dashboard -> Project Settings -> API. **Never** the `service_role` key — that one stays only in the bot's own `.env`. |
 | `NEXT_PUBLIC_DAILY_LOSS_LIMIT_PCT` | e.g. `3` | Optional. Display-only reference line on Overview; matches `src/config.py`'s `DAILY_LOSS_LIMIT_PCT` default. Not enforced here. |
 
